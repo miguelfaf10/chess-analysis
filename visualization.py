@@ -9,6 +9,8 @@ import pandas as pd
 
 from chessportals_communication import lichess_communication
 
+logger = logging.getLogger(__name__)
+
 app = Dash(__name__)
 
 # assume you have a "long-form" data frame

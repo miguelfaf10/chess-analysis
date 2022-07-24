@@ -1,9 +1,14 @@
 from typing import List
+
+import logging
+
 from datetime import datetime
 import pandas as pd
 import berserk
 
 from data_structures import GameData, UserData
+
+logger = logging.getLogger(__name__)
 
 class LichessComm:
     
@@ -93,7 +98,7 @@ class LichessComm:
                           color = [],
                           opponent = [],
                           time_control = [],
-                          creation_time = [],
+                          creation_date = [],
                           opening = [],
                           result = [],
                           moves = [],
@@ -103,7 +108,7 @@ class LichessComm:
                           judgment = [])
 
         for game in self.games_lst:
-
+            
             games_dict['game_id'].append(game.id)
 
             games_dict['color'].append('white' if (game.players.white==self.lichess_id) else 'black')
@@ -113,10 +118,13 @@ class LichessComm:
             else:
                 games_dict['opponent'].append(game.players.white.user.id)
             
-            games_dict['creation_time'].append(game.createdAt)
+            games_dict['creation_date'].append(game.createdAt)
             
-            games_dict['opening'].append(game.opening.name)
-            
+            if game.opening != None:
+                games_dict['opening'].append(game.opening.name)
+            else:
+                games_dict['opening'].append(None)
+
             if  game.winner=='draw':
                 games_dict['result'].append('draw')
             elif game.winner=='white' and game.players.white.user.id==self.lichess_id:
