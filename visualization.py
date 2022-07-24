@@ -44,8 +44,7 @@ def validate_id(lichess_id):
     if lichess_id == None or lichess_id == '':
         return f'Classical rating : ____'
     else:
-        lichess_comm = lichess_communication(lichess_id)
-        user_data = lichess_comm.fetch_user_data()
+        
         
         return f'Classical rating : {user_data.perfs.classical.rating}'
 

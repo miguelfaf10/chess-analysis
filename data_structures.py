@@ -46,7 +46,7 @@ class Clock(BaseModel):
     increment: int
     totalTime: int
 
-class GameModel(BaseModel):
+class GameData(BaseModel):
     id: str
     rated: bool
     variant: str
@@ -67,7 +67,7 @@ class Performance(BaseModel):
     games: int
     rating: int
 
-class Variants(BaseModel):
+class TimeControls(BaseModel):
     bullet: Performance
     blitz: Performance
     rapid: Performance
@@ -76,4 +76,4 @@ class Variants(BaseModel):
 class UserData(BaseModel):
     id: str
     createdAt: datetime
-    perfs: Variants
+    perfs: TimeControls

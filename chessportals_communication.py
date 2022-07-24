@@ -3,9 +3,9 @@ from datetime import datetime
 import pandas as pd
 import berserk
 
-from data_structures import GameModel, UserData
+from data_structures import GameData, UserData
 
-class lichess_communication:
+class LichessComm:
     
     lichess_id = None
     API_TOKEN = None
@@ -43,7 +43,7 @@ class lichess_communication:
 
         return self.user_data
 
-    def fetch_games_by_dates(self, since: datetime, until: datetime) -> List[GameModel]:
+    def fetch_user_games(self, since: datetime, until: datetime) -> List[GameData]:
     
         since_millis = int(berserk.utils.to_millis(since))
         until_millis = int(berserk.utils.to_millis(until))
@@ -54,14 +54,14 @@ class lichess_communication:
                                                        until=until_millis,
                                                        evals=self.get_evals,
                                                        opening=self.get_opening)
-        
-        self.games_lst = [GameModel(**game) for game in games_gen] 
+
+        self.games_lst = [GameData(**game) for game in games_gen] 
 
         return self.games_lst
     
         #for game in games_gen:
         #    try:
-        #        self.games_lst.append(GameModel(**game))
+        #        self.games_lst.append(GameData(**game))
         #    except:
         #        print(game)
         
@@ -75,7 +75,7 @@ class lichess_communication:
             print(f'Last game from  : {self.games_lst[0].createdAt}')
             print(f'First game from : {self.games_lst[-1].createdAt}')
 
-    def show_user_data(self) -> None:
+    def show_user_info(self) -> None:
         
         if self.user_data == None:
             print('No user data has been fetched')
@@ -89,11 +89,11 @@ class lichess_communication:
 
     def fill_df(self) -> pd.DataFrame:
 
-        games_dict = dict(id =[],
+        games_dict = dict(game_id =[],
                           color = [],
                           opponent = [],
                           time_control = [],
-                          datetime = [],
+                          creation_time = [],
                           opening = [],
                           result = [],
                           moves = [],
@@ -104,7 +104,7 @@ class lichess_communication:
 
         for game in self.games_lst:
 
-            games_dict['id'].append(game.id)
+            games_dict['game_id'].append(game.id)
 
             games_dict['color'].append('white' if (game.players.white==self.lichess_id) else 'black')
             
@@ -113,7 +113,7 @@ class lichess_communication:
             else:
                 games_dict['opponent'].append(game.players.white.user.id)
             
-            games_dict['datetime'].append(game.createdAt)
+            games_dict['creation_time'].append(game.createdAt)
             
             games_dict['opening'].append(game.opening.name)
             
@@ -133,7 +133,6 @@ class lichess_communication:
             
             games_dict['analysis'].append(True if game.analysis!=None else False)
             
-            print(game.analysis)
             games_dict['evals'].append([move_anal.eval for move_anal in game.analysis] 
                                        if game.analysis!=None else None)
             
