@@ -26,15 +26,16 @@ fig = px.bar(df, x="Fruit", y="Amount", color="City", barmode="group")
 app.layout = html.Div(
     [
         html.H1('Chess Insight'),
-        dcc.Input(id='lichess_id', 
-                type='text', 
-                placeholder='Lichess ID', 
-                debounce=True),
+        dcc.Input(id='lichess_id',
+                  type='text',
+                  placeholder='Lichess ID',
+                  debounce=True),
         html.Hr(),
         html.Div(id='lichess-id-exists'),
         html.Hr(),
     ]
 )
+
 
 @app.callback(
     Output("lichess-id-exists", "children"),
@@ -46,9 +47,9 @@ def validate_id(lichess_id):
     if lichess_id == None or lichess_id == '':
         return f'Classical rating : ____'
     else:
-        
-        
+
         return f'Classical rating : {user_data.perfs.classical.rating}'
+
 
 if __name__ == '__main__':
     app.run_server(debug=True, port=8090)

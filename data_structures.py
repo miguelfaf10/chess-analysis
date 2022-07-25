@@ -5,9 +5,12 @@ from datetime import datetime
 
 """Pydantic Data Class to hold game data 
 """
+
+
 class User(BaseModel):
     name: str
     id: str
+
 
 class GlobalAnalysis(BaseModel):
     inaccuracy: int
@@ -15,24 +18,29 @@ class GlobalAnalysis(BaseModel):
     blunder: int
     acpl: int
 
+
 class Player(BaseModel):
     user: User
     rating: int
     ratingDiff: Optional[int] = 0
     analysis: Optional[GlobalAnalysis] = None
 
+
 class Players(BaseModel):
     white: Player
     black: Player
+
 
 class Opening(BaseModel):
     eco: str
     name: str
     ply: int
-        
+
+
 class Judgment(BaseModel):
     name: str
     comment: str
+
 
 class MoveAnalysis(BaseModel):
     mate: Optional[int] = 'nan'
@@ -41,10 +49,12 @@ class MoveAnalysis(BaseModel):
     variation: Optional[str]
     judgment: Optional[Judgment] = ''
 
+
 class Clock(BaseModel):
     initial: int
     increment: int
     totalTime: int
+
 
 class GameData(BaseModel):
     id: str
@@ -61,17 +71,22 @@ class GameData(BaseModel):
     analysis: Optional[List[MoveAnalysis]] = None
     clock: Clock
 
+
 """Pydantic Data Class to hold user data
 """
+
+
 class Performance(BaseModel):
     games: int
     rating: int
+
 
 class TimeControls(BaseModel):
     bullet: Performance
     blitz: Performance
     rapid: Performance
     classical: Performance
+
 
 class UserData(BaseModel):
     id: str

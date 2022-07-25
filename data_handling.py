@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pandas
 
 from sqlalchemy import create_engine, select, MetaData, Table, Column, Integer, String, DateTime, Boolean, SmallInteger, ForeignKey
-from sqlalchemy.orm import declarative_base, Session
+from sqlalchemy.orm import declarative_base, relationship, Session
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy_utils import ScalarListType
 
@@ -31,7 +31,8 @@ dtypes = {'game_id': String,
           'evals': ScalarListType(float),
           'mates': ScalarListType(float),
           'judgment': ScalarListType()
-}
+          }
+
 
 class Users(Base):
     __tablename__ = 'users'
@@ -51,9 +52,10 @@ class Users(Base):
     def __repr__(self):
         return f'<User(name={self.user_id}, last_update={self.last_update}, classical={self.rating_classical}/{self.games_classical})>'
 
+
 class Games(Base):
     __tablename__ = 'games'
-    
+
     game_id = Column(String, primary_key=True)
     user_id = Column(String, ForeignKey('users.user_id'))
     color = Column(String)
@@ -67,9 +69,11 @@ class Games(Base):
     evals = Column(ScalarListType(float))
     mates = Column(ScalarListType(float))
     judgment = Column(String)
-    
+    children = relationship('Users')
+
     def __repr__(self):
-        return f'<Game(id={self.game_id}, color={self.color}, result={self.result}, opening={self.opening})>'
+        return f'<Game(id={self.game_id}, date={self.creation_date},color={self.color}, result={self.result}, opening={self.opening})>'
+
 
 class Database:
 
@@ -92,14 +96,14 @@ class Database:
         except MultipleResultsFound:
             logger.error('Multiple {user} in database')
 
-        if user != None:    
+        if user != None:
 
             user = user[0]
             logger.info(f'Found {user}')
-            
+
             # Update user entry in db if this hasn't been done in a while
             time_since_update = datetime.now() - user.last_update
-            
+
             if time_since_update > timedelta(seconds=10):
                 logger.info(f'Update {user}')
                 lichess_comm = LichessComm(lichess_id)
@@ -115,7 +119,7 @@ class Database:
                 user.games_blitz = user_data.perfs.blitz.games
                 user.games_bullet = user_data.perfs.bullet.games
                 user.last_update = datetime.now()
-                
+
                 session.commit()
 
         else:
@@ -124,8 +128,8 @@ class Database:
 
             lichess_comm = LichessComm(lichess_id)
             user_data = lichess_comm.fetch_user_data()
-            
-            logger.debug(f'<user_data.createdAt>={user_data.createdAt}')
+
+            logger.info(f'Created {user_data}')
             user = Users(user_id=user_data.id,
                          creation_date=user_data.createdAt,
                          rating_classical=user_data.perfs.classical.rating,
@@ -137,13 +141,12 @@ class Database:
                          games_blitz=user_data.perfs.blitz.games,
                          games_bullet=user_data.perfs.bullet.games,
                          last_update=datetime.now()
-                        )
+                         )
 
             session.add(user)
             session.commit()
 
         session.close()
-
 
     def process_user_games(self, lichess_id):
 
@@ -153,33 +156,32 @@ class Database:
         session = Session(self.engine)
         user = session.execute(select(Users).filter_by(user_id=lichess_id)).one()[0]
 
-        try:
-            game_lst = session.execute(select(Games).filter_by(user_id=lichess_id)).all()
-        except:
-            logger.error(f'Query games of {lichess_id}')
+        game_lst = session.execute(select(Games).filter_by(user_id=lichess_id)).all()
+        logger.info(f'{len(game_lst)} games in DB')
 
-        
-
-        if len(game_lst)>0:            
-            logger.info(f'{len(game_lst)} games in DB')
-
-        else:
-            lichess_comm = LichessComm(lichess_id)
-
-            since = datetime.now()-timedelta(days=100)#user.creation_date
+        if len(game_lst) > 0:
+            since = game_lst[0][0].creation_date
             until = datetime.now()
-            lichess_comm.fetch_user_games(since,until)
-            lichess_comm.fill_df()  
-            lichess_comm.games_df.to_sql('games', 
-                                        self.engine, 
-                                        if_exists='append',
-                                        dtype=dtypes,
-                                        index=False,
-                                        index_label='id')
-            
-            session.commit()
+        else:
+            since = datetime.now() - timedelta(days=10)  # user.creation_date
+            until = datetime.now()
 
+        lichess_comm = LichessComm(lichess_id)
+
+        #since = datetime.now()-timedelta(days=100)
+        lichess_comm.fetch_user_games(since, until)
+        lichess_comm.fill_df()
+        lichess_comm.games_df.to_sql('games',
+                                     self.engine,
+                                     if_exists='replace',
+                                     dtype=dtypes,
+                                     index=False,
+                                     index_label='id')
+
+        session.commit()
         session.close()
+
+
 """         if user != None:    
         #try:
         #    user = session.execute(select(Games).filter_by(user_id=lichess_id)).scalar_one()
@@ -203,4 +205,4 @@ class Database:
                                     index=False,
                                     index_label='id')
  """
-        ## TODO : use dictionary to insert games in DB, instead of df ??
+# TODO : use dictionary to insert games in DB, instead of df ??
