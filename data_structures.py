@@ -92,3 +92,6 @@ class UserData(BaseModel):
     id: str
     createdAt: datetime
     perfs: TimeControls
+
+#class RatingHistory(BaseModel):
+    

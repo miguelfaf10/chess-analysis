@@ -1,27 +1,21 @@
-# Run this app with `python app.py` and
-# visit http://127.0.0.1:8050/ in your web browser.
+from typing import Dict
+import logging 
 
 from dash import Dash, html, dcc
 from dash.dependencies import Input, Output
 
+
 import plotly.express as px
 import pandas as pd
 
-from chessportals_communication import lichess_communication
+from data_logic import DataLogic
 
 logger = logging.getLogger(__name__)
 
+
+
+data = DataLogic()
 app = Dash(__name__)
-
-# assume you have a "long-form" data frame
-# see https://plotly.com/python/px-arguments/ for more options
-df = pd.DataFrame({
-    "Fruit": ["Apples", "Oranges", "Bananas", "Apples", "Oranges", "Bananas"],
-    "Amount": [4, 1, 2, 2, 4, 5],
-    "City": ["SF", "SF", "SF", "Montreal", "Montreal", "Montreal"]
-})
-
-fig = px.bar(df, x="Fruit", y="Amount", color="City", barmode="group")
 
 app.layout = html.Div(
     [
@@ -33,9 +27,13 @@ app.layout = html.Div(
         html.Hr(),
         html.Div(id='lichess-id-exists'),
         html.Hr(),
+        dcc.Tabs(id="tabs-example-graph", value='tab-1-example-graph', children=[
+            dcc.Tab(label='Rating', value='tab-rating'),
+            dcc.Tab(label='Opening', value='tab-opening'),
+            dcc.Tab(label='Analysis', value='tab-analysis'),
+        ])
     ]
 )
-
 
 @app.callback(
     Output("lichess-id-exists", "children"),
@@ -43,13 +41,49 @@ app.layout = html.Div(
 )
 def validate_id(lichess_id):
 
-    print(lichess_id)
     if lichess_id == None or lichess_id == '':
         return f'Classical rating : ____'
     else:
+#        data.process_user(lichess_id)
+        info = data.player_general_info(lichess_id)
+        return f'Classical rating : {info.rating_classical}'
 
-        return f'Classical rating : {user_data.perfs.classical.rating}'
+@app.callback(Output('tabs-content-example-graph', 'children'),
+              Input('tabs-example-graph', 'value'))
+def render_content(tab):
+    if tab == 'tab-':
+        return html.Div([
+            html.H3('Tab content 1'),
+            dcc.Graph(
+                figure={
+                    'data': [{
+                        'x': [1, 2, 3],
+                        'y': [3, 1, 2],
+                        'type': 'bar'
+                    }]
+                }
+            )
+        ])
+    elif tab == 'tab-2-example-graph':
+        return html.Div([
+            html.H3('Tab content 2'),
+            dcc.Graph(
+                id='graph-2-tabs-dcc',
+                figure={
+                    'data': [{
+                        'x': [1, 2, 3],
+                        'y': [5, 10, 6],
+                        'type': 'bar'
+                    }]
+                }
+            )
+        ])
 
 
 if __name__ == '__main__':
+
+    logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)30s <%(funcName)20s(),%(lineno)d> \t%(message)s',
+                        level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
     app.run_server(debug=True, port=8090)

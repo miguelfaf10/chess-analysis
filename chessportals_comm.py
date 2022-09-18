@@ -1,3 +1,4 @@
+from distutils.debug import DEBUG
 from typing import List
 
 import logging
@@ -5,11 +6,12 @@ import logging
 from datetime import datetime
 import pandas as pd
 import berserk
+from berserk.exceptions import ApiError 
 
 from data_structures import GameData, UserData
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.DEBUG)
 
 class LichessComm:
 
@@ -24,46 +26,65 @@ class LichessComm:
     games_lst = []
     games_df = None
 
-    def __init__(self, user) -> None:
+    def __init__(self, lichess_id) -> None:
 
         # Initialize token
         with open('conf/token.txt') as f:
             self.API_TOKEN = f.readline()[:-1]
 
         # Initialize lichess client
-        self.lichess_id = user
+        self.lichess_id = lichess_id
         session = berserk.TokenSession(self.API_TOKEN)
         self.client = berserk.Client(session=session)
+        logger.debug('Created client session to Lichess API')
 
     def fetch_user_rating(self):
 
-        player_rating = self.client.users.get_rating_history(self.lichess_id)
-
-        return player_rating
+        try:
+            player_rating = self.client.users.get_rating_history(self.lichess_id)
+            return player_rating
+            
+        except ApiError:
+            logger.error('While get_rating_history from Lichess API')
+            return None
 
     def fetch_user_data(self):
+    
+        try:
+            user_data = self.client.users.get_public_data(self.lichess_id)
+            self.user_data = UserData(**user_data)
+            return self.user_data
 
-        user_data = self.client.users.get_public_data(self.lichess_id)
+        except ApiError:
+            logger.error('While get_public_data from Lichess API')
+            return None
 
-        self.user_data = UserData(**user_data)
 
-        return self.user_data
-
-    def fetch_user_games(self, since: datetime, until: datetime) -> List[GameData]:
+    def fetch_user_games(self, since: datetime, until: datetime) -> int:
+    
 
         since_millis = int(berserk.utils.to_millis(since))
         until_millis = int(berserk.utils.to_millis(until))
 
-        games_gen = self.client.games.export_by_player(self.lichess_id,
-                                                       rated=True,
-                                                       since=since_millis,
-                                                       until=until_millis,
-                                                       evals=self.get_evals,
-                                                       opening=self.get_opening)
+        try:
+            logger.info(f'Retrieving games from lichess for user "{self.lichess_id}"')
+            logger.info(f'Between {since} and {until}')
+            
+            games_gen = self.client.games.export_by_player(self.lichess_id,
+                                                        rated=True,
+                                                        since=since_millis,
+                                                        until=until_millis,
+                                                        evals=self.get_evals,
+                                                        opening=self.get_opening)
+            self.games_lst = [GameData(**game) for game in games_gen]
+            
+            logger.info(f'{len(self.games_lst)} games retrieved')
+            return len(self.games_lst)
 
-        self.games_lst = [GameData(**game) for game in games_gen]
+        except Exception as e:
+            logger.error(f'Exception "{e}" while fetching games from Lichess API')
+            return None
 
-        return self.games_lst
 
     def show_games_info(self) -> None:
 
