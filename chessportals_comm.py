@@ -8,7 +8,7 @@ import pandas as pd
 import berserk
 from berserk.exceptions import ApiError 
 
-from data_structures import GameData, UserData
+from data_structures import GameLichessData, UserData
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -34,8 +34,8 @@ class LichessComm:
 
         # Initialize lichess client
         self.lichess_id = lichess_id
-        session = berserk.TokenSession(self.API_TOKEN)
-        self.client = berserk.Client(session=session)
+        session_lichess = berserk.TokenSession(self.API_TOKEN)
+        self.client = berserk.Client(session=session_lichess)
         logger.debug('Created client session to Lichess API')
 
     def fetch_user_rating(self):
@@ -76,7 +76,7 @@ class LichessComm:
                                                         until=until_millis,
                                                         evals=self.get_evals,
                                                         opening=self.get_opening)
-            self.games_lst = [GameData(**game) for game in games_gen]
+            self.games_lst = [GameLichessData(**game) for game in games_gen]
             
             logger.info(f'{len(self.games_lst)} games retrieved')
             return len(self.games_lst)

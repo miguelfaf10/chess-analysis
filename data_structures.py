@@ -56,7 +56,7 @@ class Clock(BaseModel):
     totalTime: int
 
 
-class GameData(BaseModel):
+class GameLichessData(BaseModel):
     id: str
     rated: bool
     variant: str
@@ -71,6 +71,20 @@ class GameData(BaseModel):
     analysis: Optional[List[MoveAnalysis]] = None
     clock: Clock
 
+class GameData(BaseModel):
+    game_id: str
+    user_id: str
+    color: str
+    opponent: str
+    time_control: str
+    creation_date: datetime
+    opening: str
+    result: str
+    moves: List[str]
+    analysis: bool
+    evals: List[float]
+    mates: List[float]
+    judgment: str
 
 """Pydantic Data Class to hold user data
 """

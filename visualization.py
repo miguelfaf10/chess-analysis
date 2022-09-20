@@ -25,7 +25,9 @@ app.layout = html.Div(
                   placeholder='Lichess ID',
                   debounce=True),
         html.Hr(),
-        html.Div(id='lichess-id-exists'),
+        html.Div(id='rating-str'),
+        dcc.Graph(id='rating-fig',
+                  config={'displayModeBar': False}),
         html.Hr(),
         dcc.Tabs(id="tabs-example-graph", value='tab-1-example-graph', children=[
             dcc.Tab(label='Rating', value='tab-rating'),
@@ -36,17 +38,36 @@ app.layout = html.Div(
 )
 
 @app.callback(
-    Output("lichess-id-exists", "children"),
-    Input("lichess_id", "value")
+    Output('rating-str', 'children'),
+    Output('rating-fig', 'figure'),
+    Input('lichess_id', 'value')
 )
 def validate_id(lichess_id):
 
     if lichess_id == None or lichess_id == '':
-        return f'Classical rating : ____'
+        rating_str = f''
+        rating_fig = px.bar(x=['Classical','Rapid','Blitz','Bullet'],
+                            y=[0,0,0,0],
+                            labels={'x':'Time Control', 'y':'Rating'})
     else:
 #        data.process_user(lichess_id)
-        info = data.player_general_info(lichess_id)
-        return f'Classical rating : {info.rating_classical}'
+        player_data = data.player_data_lichess(lichess_id)
+
+        if player_data != None:
+            rating_str = (f'On Lichess since {player_data.createdAt.strftime("%d/%m/%Y")}')
+            rating_fig = px.bar(x=['Classical','Rapid','Blitz','Bullet'],
+                                y=[player_data.perfs.classical.rating, 
+                                    player_data.perfs.rapid.rating,
+                                    player_data.perfs.blitz.rating,
+                                    player_data.perfs.bullet.rating],
+                                labels={'x':'Time Control', 'y':'Rating'})
+        
+        else:
+            rating_str = f'User not found in Lichess'
+            rating_fig = None
+
+    return rating_str, rating_fig
+
 
 @app.callback(Output('tabs-content-example-graph', 'children'),
               Input('tabs-example-graph', 'value'))
@@ -82,7 +103,7 @@ def render_content(tab):
 
 if __name__ == '__main__':
 
-    logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)30s <%(funcName)20s(),%(lineno)d> \t%(message)s',
+    logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)30s <%(funcName)20s(),%(lineno)d> \n%(message)s',
                         level=logging.INFO)
     logger = logging.getLogger(__name__)
 

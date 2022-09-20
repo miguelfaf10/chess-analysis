@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 
 import pandas
 
-from data_structures import TimeControls
-from data_handling import Database, Users, Games
+from data_structures import TimeControls, UserData
+from data_handling import Database
 
 # Create configure module   module_logger
 logger = logging.getLogger(__name__)
@@ -18,9 +18,9 @@ class DataLogic:
     def __init__(self):
         self.db = Database()
 
-    def player_general_info(self, player_id) -> Users:
-        info = self.db.retrieve_user_data(player_id)
-        return info
+    def player_data_lichess(self, player_id) -> UserData:
+        user_data = self.db.retrieve_user_data(player_id)
+        return user_data
 
     def player_openings(self, player_id):
         self.db.retrieve_user_data(player_id)
