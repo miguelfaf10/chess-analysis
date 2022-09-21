@@ -66,9 +66,9 @@ class GameLichessData(BaseModel):
     status: str
     players: Players
     winner: Optional[str] = 'draw'
-    opening: Optional[Opening] = None
+    opening: Optional[Opening] = ''
     moves: str
-    analysis: Optional[List[MoveAnalysis]] = None
+    analysis: Optional[List[MoveAnalysis]] = ''
     clock: Clock
 
 class GameData(BaseModel):

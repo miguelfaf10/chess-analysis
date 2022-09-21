@@ -11,31 +11,31 @@ import pandas as pd
 from data_logic import DataLogic
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 
 data = DataLogic()
 app = Dash(__name__)
 
-app.layout = html.Div(
-    [
-        html.H1('Chess Insight'),
-        dcc.Input(id='lichess_id',
-                  type='text',
-                  placeholder='Lichess ID',
-                  debounce=True),
-        html.Hr(),
-        html.Div(id='rating-str'),
-        dcc.Graph(id='rating-fig',
-                  config={'displayModeBar': False}),
-        html.Hr(),
-        dcc.Tabs(id="tabs-example-graph", value='tab-1-example-graph', children=[
-            dcc.Tab(label='Rating', value='tab-rating'),
-            dcc.Tab(label='Opening', value='tab-opening'),
-            dcc.Tab(label='Analysis', value='tab-analysis'),
-        ])
-    ]
-)
+app.layout = html.Div([
+    html.H1('Chess Insight'),
+    dcc.Input(id='lichess_id',
+                type='text',
+                placeholder='Lichess ID',
+                debounce=True),
+    html.Hr(),
+    html.Div(id='rating-str'),
+    dcc.Graph(id='rating-fig',
+                config={'displayModeBar': False}),
+    html.Hr(),
+    dcc.Tabs(id='tabs-selection', value='tab-opening', children=[
+        dcc.Tab(label='Rating', value='tab-rating'),
+        dcc.Tab(label='Opening', value='tab-opening'),
+        dcc.Tab(label='Analysis', value='tab-analysis'),
+    ]),
+    html.Div(id='tabs-content')
+])
 
 @app.callback(
     Output('rating-str', 'children'),
@@ -69,23 +69,23 @@ def validate_id(lichess_id):
     return rating_str, rating_fig
 
 
-@app.callback(Output('tabs-content-example-graph', 'children'),
-              Input('tabs-example-graph', 'value'))
-def render_content(tab):
-    if tab == 'tab-':
+@app.callback(
+    Output('tabs-content', 'children'),
+    Input('tabs-selection', 'value'),
+    Input('lichess_id', 'value')
+)
+def render_content(tab, lichess_id):
+    if tab == 'tab-opening':
+        logger.info(f'Opening tab has been selected for user {lichess_id}.')
+        stats_df = data.player_openings(lichess_id)
         return html.Div([
-            html.H3('Tab content 1'),
+            html.H3('Opening'),
             dcc.Graph(
-                figure={
-                    'data': [{
-                        'x': [1, 2, 3],
-                        'y': [3, 1, 2],
-                        'type': 'bar'
-                    }]
-                }
+                figure=px.bar(stats_df,y='opening',x=['win','loss']),
+                config={'displayModeBar': False}
             )
         ])
-    elif tab == 'tab-2-example-graph':
+    elif tab == 'tab-rating':
         return html.Div([
             html.H3('Tab content 2'),
             dcc.Graph(

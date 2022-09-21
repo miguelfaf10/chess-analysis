@@ -216,27 +216,28 @@ class Database:
             new_game_lst = [aux[0] for aux in session.execute(select(GamesTemp)).all()]
 
             if len(new_game_lst)>0:
-                for game in new_game_lst:
-                    if game.game_id not in old_gameid_lst:
-                        logger.debug(f'Adding game {game.game_id} to Games table in DB')
+ 
+                for game_temp in new_game_lst:
+                    if game_temp.game_id not in old_gameid_lst:
+                        logger.debug(f'Adding game {game_temp.game_id} to Games table in DB')
                         game = Games(
-                                game_id = game.game_id,
-                                user_id = game.user_id,
-                                color = game.color,
-                                opponent = game.opponent,
-                                time_control = game.time_control,
-                                creation_date = game.creation_date,
-                                opening = game.opening,
-                                result = game.result,
-                                moves = game.moves,
-                                analysis = game.analysis,
-                                evals = game.evals,
-                                mates = game.mates,
-                                judgment = game.judgment
+                                game_id = game_temp.game_id,
+                                user_id = game_temp.user_id,
+                                color = game_temp.color,
+                                opponent = game_temp.opponent,
+                                time_control = game_temp.time_control,
+                                creation_date = game_temp.creation_date,
+                                opening = game_temp.opening,
+                                result = game_temp.result,
+                                moves = game_temp.moves,
+                                analysis = game_temp.analysis,
+                                evals = game_temp.evals,
+                                mates = game_temp.mates,
+                                judgment = game_temp.judgment
                         )
                         session.add(game)
                     else:
-                        logger.debug(f'Ignoring game "{game.game_id}" which exists already in Games table in DB')
+                        logger.debug(f'Ignoring game "{game_temp.game_id}" which exists already in Games table in DB')
             session.commit()
         except:
             logger.error(f'Failed to copy new games from temp to permanent db table')
@@ -294,8 +295,14 @@ class Database:
 
         if len(game_lst) == 0: 
             # Fetch all user games since user was created
-            since = datetime.now() - timedelta(days=10) #user.creation_date  # user.creation_date
+            # since = datetime.now() - timedelta(days=10) #user.creation_date  # user.creation_date
+            since = user.creation_date  # user.creation_date
             until = datetime.now()
+
+            ## For debugging purposes 
+            # Time periods to return particular game from miguel0f with no moves 
+            # since = datetime.strptime('2022/05/28 20:00:00','%Y/%m/%d %H:%M:%S')
+            # until = datetime.strptime('2022/05/28 23:00:00','%Y/%m/%d %H:%M:%S')
 
         elif len(game_lst) > 0:
             time_since_update = datetime.now() - game_lst[0][0].creation_date
@@ -316,7 +323,6 @@ class Database:
             session.close()
             return None
         else:
-            print(game_lst)
             game_data_lst = [self.convert_gamedata_type(game[0]) for game in game_lst]
             session.close()        
             return game_data_lst

@@ -76,6 +76,7 @@ class LichessComm:
                                                         until=until_millis,
                                                         evals=self.get_evals,
                                                         opening=self.get_opening)
+            
             self.games_lst = [GameLichessData(**game) for game in games_gen]
             
             logger.info(f'{len(self.games_lst)} games retrieved')
@@ -89,8 +90,11 @@ class LichessComm:
     def show_games_info(self) -> None:
 
         if self.games_lst is None:
-            print('No games have been fetched')
-            return False
+            print('No games have been fetched yet')
+            return
+        elif self.games_lst == []:
+            print('No games have been found for this time period')
+            return
         else:
             print(f'Fetched {len(self.games_lst)} games')
             print(f'Last game from  : {self.games_lst[0].createdAt}')
@@ -142,7 +146,7 @@ class LichessComm:
             if game.opening is not None:
                 games_dict['opening'].append(game.opening.name)
             else:
-                games_dict['opening'].append(None)
+                games_dict['opening'].append('')
 
             if game.winner == 'draw':
                 games_dict['result'].append('draw')
@@ -160,13 +164,13 @@ class LichessComm:
             games_dict['analysis'].append(True if game.analysis != None else False)
 
             games_dict['evals'].append([move_anal.eval for move_anal in game.analysis]
-                                       if game.analysis != None else None)
+                                       if game.analysis != None else [])
 
             games_dict['mates'].append([move_anal.mate for move_anal in game.analysis]
-                                       if game.analysis != None else None)
+                                       if game.analysis != None else [])
 
             games_dict['judgment'].append([move_anal.judgment.name if move_anal.judgment != '' else '' for move_anal in game.analysis]
-                                          if game.analysis != None else None)
+                                          if game.analysis != None else [])
 
         self.games_df = pd.DataFrame.from_dict(games_dict, orient='columns')
         #self.games_df.set_index('id', inplace=True)
