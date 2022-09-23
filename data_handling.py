@@ -308,12 +308,14 @@ class Database:
             time_since_update = datetime.now() - game_lst[0][0].creation_date
             
             # Fetch latest games into db if this hasn't been done in a while
-            if time_since_update > timedelta(minutes=5):
-                since = game_lst[0][0].creation_date + timedelta(hours=1)
+            if time_since_update > timedelta(days=1):
+                since = game_lst[0][0].creation_date
                 until = datetime.now()
-            
+
+        print("Before migrate games")   
         # Actually migrate games from Lichess into DB
         self._migrate_user_games(lichess_id, since, until)
+        print("After migrate games")   
 
         # Read again game list from db and return it
         game_lst = session.execute(select(Games).filter_by(user_id=lichess_id)).all()
