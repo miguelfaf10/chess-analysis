@@ -131,8 +131,7 @@ class LichessComm:
         for game in self.games_lst:
 
             games_dict['game_id'].append(game.id)
-
-            games_dict['color'].append('white' if (game.players.white == self.lichess_id) else 'black')
+            games_dict['color'].append('white' if (game.players.white.user.id == self.lichess_id) else 'black')
 
             if game.players.white.user.id == self.lichess_id:
                 games_dict['user_id'].append(game.players.white.user.id)
@@ -175,4 +174,3 @@ class LichessComm:
         self.games_df = pd.DataFrame.from_dict(games_dict, orient='columns')
         #self.games_df.set_index('id', inplace=True)
 
-        return self.games_df

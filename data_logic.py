@@ -23,24 +23,26 @@ class DataLogic:
         user_data = self.db.retrieve_user_data(player_id)
         return user_data
 
-    def player_openings(self, player_id):
+    def player_openings(self, player_id, side):
 
         user_games = self.db.retrieve_user_games(player_id)
         logger.info(f'Player_openings analysis received {len(user_games)} games')
         openings_dict = {
             'opening': [],
+            'color': [],
             'result': [],
             'date': [],
             'time': [] 
             }
         for game in user_games:
             openings_dict['opening'].append(game.opening)
+            openings_dict['color'].append(game.color)
             openings_dict['result'].append(game.result)
             openings_dict['date'].append(game.creation_date)
             openings_dict['time'].append(game.time_control)
 
         openings_df = pd.DataFrame.from_dict(openings_dict)
-
+        openings_df = openings_df[openings_df['color']==side]
         stats_df = openings_df.groupby(['opening', 'result']).size().unstack(fill_value=0)
         stats_df['total'] = openings_df['opening'].value_counts()
         stats_df.sort_values('total',ascending=True, inplace=True)

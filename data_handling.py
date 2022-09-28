@@ -190,7 +190,7 @@ class Database:
 
             return user
 
-    def _migrate_user_games(self, lichess_id:str, since:datetime, until:datetime) -> None:
+    def migrate_user_games(self, lichess_id:str, since:datetime, until:datetime) -> None:
 
         # Retrieve user data from lichess
         lichess_comm = LichessComm(lichess_id)
@@ -312,10 +312,8 @@ class Database:
                 since = game_lst[0][0].creation_date
                 until = datetime.now()
 
-        print("Before migrate games")   
         # Actually migrate games from Lichess into DB
         self._migrate_user_games(lichess_id, since, until)
-        print("After migrate games")   
 
         # Read again game list from db and return it
         game_lst = session.execute(select(Games).filter_by(user_id=lichess_id)).all()

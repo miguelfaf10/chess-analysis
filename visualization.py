@@ -77,13 +77,19 @@ def validate_id(lichess_id):
 def render_content(tab, lichess_id):
     if tab == 'tab-opening':
         logger.info(f'Opening tab has been selected for user {lichess_id}.')
-        stats_df = data.player_openings(lichess_id)
+        opening_white_df = data.player_openings(lichess_id, 'white').tail(10)
+        opening_black_df = data.player_openings(lichess_id, 'black').tail(10)
         return html.Div([
             html.H3('Opening'),
             dcc.Graph(
-                figure=px.bar(stats_df,y='opening',x=['win','loss']),
+                figure=px.bar(opening_white_df,y='White',x=opening_white_df.columns[:-1]), # trick to include 'draw' column when avaible and remove 'total' col
                 config={'displayModeBar': False}
-            )
+            ),
+            dcc.Graph(
+                 figure=px.bar(opening_black_df,y='Black',x=opening_black_df.columns[:-1]),
+                 config={'displayModeBar': False}
+             )
+ 
         ])
     elif tab == 'tab-rating':
         logger.info(f'Rating tab has been selected for user {lichess_id}.')
