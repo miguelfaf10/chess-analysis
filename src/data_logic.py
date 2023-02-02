@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from data_structures import TimeControls, UserData
+from data_structures import TimeControls, UserLichessData
 from data_handling import Database
 
 # Create configure module   module_logger
@@ -19,7 +19,7 @@ class DataLogic:
     def __init__(self):
         self.db = Database()
 
-    def player_data_lichess(self, player_id) -> UserData:
+    def player_data_lichess(self, player_id) -> UserLichessData:
         user_data = self.db.retrieve_user_data(player_id)
         return user_data
 
