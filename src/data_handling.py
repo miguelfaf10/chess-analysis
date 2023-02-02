@@ -1,3 +1,9 @@
+"""Implements application DB
+
+This modules implements the application database and respective interface 
+functions.
+"""
+
 from pathlib import Path
 import logging
 
@@ -11,7 +17,7 @@ from sqlalchemy.orm import declarative_base, declarative_mixin, relationship, Se
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy_utils import ScalarListType
 
-from data_structures import UserData, TimeControls, Performance, GameLichessData, GameData
+from data_structures import UserLichessData, TimeControls, Performance, GameLichessData, GameData
 from chessportals_comm import LichessComm
 
 # Create configure module   module_logger
@@ -19,6 +25,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 Base = declarative_base()
+"""SQLAlchemy declarative base class
+"""
 
 dtypes = {'game_id': String,
           'user_id': String,
@@ -34,10 +42,53 @@ dtypes = {'game_id': String,
           'mates': ScalarListType(float),
           'judgment': ScalarListType()
           }
+"""dict: Specifies SQL types to be used for different fields in
+GameData objects from data_structures.py.  
+"""
+
+class Player(Base):
+    """Declares SQLAlchemy table for players
+    
+    Each player is a user of the ChessScope app and can have accounts
+    in different chess platforms (i.e. lichess, chess.com)
+    """
+    __tablename__ = 'player'
+
+    player_id = Column(String, primary_key=True)
+    lichess_id = Column(String, ForeignKey('user-lichess.user_id'))
+    chesscom_id = Column(String, ForeignKey('user-chesscom.user_id'))
+
+    def __repr__(self):
+         return f'<Player(player_id={self.player_id}, lichess_id={self.lichess_id})>'
 
 
-class Users(Base):
-    __tablename__ = 'users'
+class UserChesscom(Base):
+    """Declares SQLAlchemy table for Chess.com users info
+    """
+  
+    __tablename__ = 'user-chesscom'
+
+    user_id = Column(String, primary_key=True)
+    creation_date = Column(DateTime)
+    rating_classical = Column(SmallInteger)
+    rating_rapid = Column(SmallInteger)
+    rating_blitz = Column(SmallInteger)
+    rating_bullet = Column(SmallInteger)
+    games_classical = Column(SmallInteger)
+    games_rapid = Column(SmallInteger)
+    games_blitz = Column(SmallInteger)
+    games_bullet = Column(SmallInteger)
+    last_update = Column(DateTime)
+
+    def __repr__(self):
+        return f'<Users(user_id={self.user_id}, last_update={self.last_update}, classical={self.rating_classical}/{self.games_classical})>'
+
+
+class UserLichess(Base):
+    """Declares SQLAlchemy table for **Lichess users info***
+    """
+  
+    __tablename__ = 'user-lichess'
 
     user_id = Column(String, primary_key=True)
     creation_date = Column(DateTime)
@@ -56,10 +107,13 @@ class Users(Base):
 
 
 class Games(Base):
+    """Declares SQLAlchemy table for ***players games***
+    """
+
     __tablename__ = 'games'
 
     game_id = Column(String, primary_key=True)
-    user_id = Column(String, ForeignKey('users.user_id'))
+    player_id = Column(String, ForeignKey('player.player_id'))
     color = Column(String)
     opponent = Column(String)
     time_control = Column(String)
@@ -71,12 +125,16 @@ class Games(Base):
     evals = Column(ScalarListType(float))
     mates = Column(ScalarListType(float))
     judgment = Column(String)
-    children = relationship('Users')
+    children = relationship('Player')
 
     def __repr__(self):
         return f'<Game(id={self.game_id}, date={self.creation_date},color={self.color}, result={self.result}, opening={self.opening})>'
 
-class GamesTemp(Base):
+class GamesTemp(Base):   
+    """Declares SQLAlchemy table for temporary players games
+    
+    This DB table is used temporarily when fetching games from external platforms 
+    """
     __tablename__ = 'games_temp'
 
     game_id = Column(String, primary_key=True)
@@ -99,7 +157,13 @@ class GamesTemp(Base):
 #     game_id = Column(String, primary_key=True)
 
 class Database:
-
+    """Declares Database class
+    
+    This classes handles everything related to the application database.
+    Provides interfaces for returning current information in the database. 
+    Also implements methods for populating database with information from chess 
+    platforms with communication functions implemented in module :py:mod:chessportals_comm
+    """
     engine = None
         
     def __init__(self) -> None:
@@ -116,12 +180,12 @@ class Database:
         Base.metadata.create_all(self.engine)
 
     @staticmethod
-    def convert_userdata_type(user:Users) -> UserData:
+    def convert_userdata(user:UserLichess) -> UserLichessData:
 
         if user == None:
             return None
         else:
-            user_data = UserData(
+            user_data = UserLichessData(
                 id = user.user_id,
                 createdAt = user.creation_date,
                 perfs=TimeControls(
@@ -134,7 +198,7 @@ class Database:
         return user_data
 
     @staticmethod
-    def convert_gamedata_type(game:Games) -> GameData:
+    def convert_gamedata(game:Games) -> GameData:
 
         if game == None:
             return None
@@ -156,7 +220,7 @@ class Database:
         )
         return game_data
 
-    def _migrate_user_data(self, lichess_id:str) -> Users:
+    def migrate_user_data(self, lichess_id:str) -> UserLichess:
 
         # Retrieve user data from lichess
         lichess_comm = LichessComm(lichess_id)
@@ -169,7 +233,7 @@ class Database:
             logger.info(f'Created {user_data.id} in DB')
 
             # Create DB model with Lichess info
-            user = Users(user_id=user_data.id,
+            user = UserLichess(user_id=user_data.id,
                         creation_date=user_data.createdAt,
                         rating_classical=user_data.perfs.classical.rating,
                         rating_rapid=user_data.perfs.rapid.rating,
@@ -246,38 +310,22 @@ class Database:
             session.close()
 
 
-    def retrieve_user_data(self, lichess_id) -> Users:
+    def retrieve_player_data(self, player_id) -> UserLichess:
 
         session = Session(self.engine)
         try:
-            user = session.execute(select(Users).filter_by(user_id=lichess_id)).one()[0]
-            logger.info(f'Found user {lichess_id} in DB')
-
-             # Update user entry in db if this hasn't been done in a while
-            time_since_update = datetime.now() - user.last_update
-
-            if time_since_update > timedelta(days=10):
-                logger.info(f'Update user {lichess_id}')
-                self._migrate_user_data(lichess_id)
-                user = session.execute(select(Users).filter_by(user_id=lichess_id)).one()[0]
+            player = session.execute(select(Player).filter_by(player_id=player_id)).one()[0]
+            logger.info(f'Found in DB: {player}')
 
         except NoResultFound:
-            logger.info(f'User {lichess_id} not found in database. Migrating from Lichess')
-            self._migrate_user_data(lichess_id)
-            user = session.execute(select(Users).filter_by(user_id=lichess_id)).one()[0]
-            if user != None:
-                logger.info(f'Found user {lichess_id} in DB')
-            else:
-                return None
-
-        except:
-            logger.error(f'While retrieving user {lichess_id} from DB')
-            user = None
+            logger.info(f'Player {player_id} not found in DB.')
+            return None
 
         finally:
-            user_data = self.convert_userdata_type(user)
+            user_data = self.convert_userdata(player)
             #session.close()
             return user_data  
+
 
     def retrieve_user_games(self, lichess_id):
 
@@ -294,40 +342,11 @@ class Database:
         logger.info(f'User {lichess_id} has {len(game_lst)} games in DB')
 
         if len(game_lst) == 0: 
-            # Fetch all user games since user was created
-            # since = datetime.now() - timedelta(days=10) #user.creation_date  # user.creation_date
-            since = user.creation_date  # user.creation_date
-            until = datetime.now()
-
-            ## For debugging purposes 
-            # Time periods to return particular game from miguel0f with no moves 
-            # since = datetime.strptime('2022/05/28 20:00:00','%Y/%m/%d %H:%M:%S')
-            # until = datetime.strptime('2022/05/28 23:00:00','%Y/%m/%d %H:%M:%S')
-
-        elif len(game_lst) > 0:
-            time_since_update = datetime.now() - game_lst[0][0].creation_date
-            
-            # Fetch latest games into db if this hasn't been done in a while
-            if time_since_update > timedelta(days=1):
-                since = game_lst[0][0].creation_date
-                until = datetime.now()
-
-        # Actually migrate games from Lichess into DB
-        self._migrate_user_games(lichess_id, since, until)
-
-        # Read again game list from db and return it
-        game_lst = session.execute(select(Games).filter_by(user_id=lichess_id)).all()
-        
-        logger.info(f'User {lichess_id} has {len(game_lst)} games in DB, after fetching from lichess')
-        if len(game_lst) == 0: 
             session.close()
             return None
         else:
-            game_data_lst = [self.convert_gamedata_type(game[0]) for game in game_lst]
+            game_data_lst = [self.convert_gamedata(game[0]) for game in game_lst]
             session.close()        
             return game_data_lst
     
-        
-
-
-# TODO : use dictionary to insert games in DB, instead of df ??
+    

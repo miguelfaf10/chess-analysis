@@ -2,19 +2,33 @@ from distutils.debug import DEBUG
 from typing import List
 
 import logging
+from pprint import pprint
 
 from datetime import datetime
 import pandas as pd
 import berserk
 from berserk.exceptions import ApiError 
 
-from data_structures import GameLichessData, UserData
+from src.data_structures import GameData, UserLichessData
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 class LichessComm:
+    """Class that wraps around the Lichess API provided by berserk to retrieve information.
 
+    Attributes:
+        lichess_id (str): The ID of the lichess user.
+        API_TOKEN (str): The token to access the Lichess API.
+        client (berserk.Client): The client used to connect to the Lichess API.
+        user_data (UserLichessData): The data structure that stores the information of the lichess user.
+        get_opening (bool): If true, include opening information for games.
+        get_evals (bool): If true, include evaluation information for games.
+        games (List[GameData]): List of game information for the user.
+        games_df (pd.DataFrame): DataFrame of game information for the user.
+
+    """
+    
     lichess_id = None
     API_TOKEN = None
     client = None
@@ -23,11 +37,16 @@ class LichessComm:
 
     get_opening = True
     get_evals = True
-    games_lst = []
+    games = []
     games_df = None
 
     def __init__(self, lichess_id) -> None:
+        """Initialize the LichessComm object.
 
+        Args:
+            lichess_id (str): The ID of the lichess user.
+        
+        """
         # Initialize token
         with open('conf/token.txt') as f:
             self.API_TOKEN = f.readline()[:-1]
@@ -39,7 +58,12 @@ class LichessComm:
         logger.debug('Created client session to Lichess API')
 
     def fetch_user_rating(self):
+        """Fetch the rating history of the lichess user.
 
+        Returns:
+            dict: The rating history of the lichess user, or None if there is an error.
+        
+        """
         try:
             player_rating = self.client.users.get_rating_history(self.lichess_id)
             return player_rating
@@ -49,19 +73,57 @@ class LichessComm:
             return None
 
     def fetch_user_data(self):
-    
+        """Fetch and store public data of a lichess user.
+        This function uses the Lichess API to retrieve public data of the lichess user, specified by the lichess_id attribute of the class instance. The data is stored in the user_data attribute of the class instance as an instance of the UserLichessData class.
+        
+        Returns: None
+        
+        Raises: Exception: If there's an error in fetching the user data from the Lichess API. The error message is logged with logger.error.
+        """
+
         try:
             user_data = self.client.users.get_public_data(self.lichess_id)
-            self.user_data = UserData(**user_data)
-            return self.user_data
-
+            
+            self.user_data = UserLichessData(
+                                id = user_data['id'],
+                                creation_date = user_data['createdAt'],
+                                bullet_games = user_data['perfs']['bullet']['games'],
+                                bullet_rating = user_data['perfs']['bullet']['rating'],
+                                blitz_games = user_data['perfs']['blitz']['games'],
+                                blitz_rating = user_data['perfs']['blitz']['rating'],
+                                rapid_games = user_data['perfs']['rapid']['games'],
+                                rapid_rating = user_data['perfs']['rapid']['rating'],
+                                classical_games = user_data['perfs']['classical']['games'],
+                                classical_rating = user_data['perfs']['classical']['rating']
+            )
+            
         except ApiError:
             logger.error('While get_public_data from Lichess API')
             return None
 
+    def show_user_info(self) -> None:
+        """This function displays the user information if it has been fetched, otherwise it prints "No user data has been fetched".
+
+        Returns: None
+        """
+
+        if self.user_data is None:
+            print('No user data has been fetched')
+            return False
+        else:
+            print(f'User {self.user_data.id} created on {self.user_data.creation_date}')
+            print(f'Rating Classical : {self.user_data.classical_rating:4} ({self.user_data.classical_games:4} games)')
+            print(f'Rating Rapid     : {self.user_data.rapid_rating:4} ({self.user_data.rapid_games:4} games)')
+            print(f'Rating Blitz     : {self.user_data.blitz_rating:4} ({self.user_data.blitz_games:4} games)')
+            print(f'Rating Bullet    : {self.user_data.bullet_rating:4} ({self.user_data.bullet_games:4} games)')
+
 
     def fetch_user_games(self, since: datetime, until: datetime) -> int:
-    
+        """This function retrieves the games played by the user between the specified date range from the Lichess API. The date range is specified using since and until arguments of datetime type. The function returns the number of games retrieved as an int, or None if an exception occurs.
+        The function converts the datetime arguments since and until to milliseconds using the berserk.utils.to_millis function. It then uses the self.client.games.export_by_player method to retrieve the games and stores them as GameData objects in the self.games list.
+        For each game, the function extracts relevant information such as the players' IDs, winner, moves, evaluations, mates, and judgment information. These values are used to create a GameData object and append it to the self.games list.
+        The function logs the number of games retrieved using the logger.info method. In case of an exception, the error message is logged using the logger.error method.
+        """
 
         since_millis = int(berserk.utils.to_millis(since))
         until_millis = int(berserk.utils.to_millis(until))
@@ -77,10 +139,55 @@ class LichessComm:
                                                         evals=self.get_evals,
                                                         opening=self.get_opening)
             
-            self.games_lst = [GameLichessData(**game) for game in games_gen]
-            
-            logger.info(f'{len(self.games_lst)} games retrieved')
-            return len(self.games_lst)
+            for game_data in games_gen:
+                
+                black_id = game_data['players']['black']['user']['id']
+                white_id = game_data['players']['white']['user']['id']
+                
+                if self.lichess_id == black_id:
+                    user_side = 'black'
+                    opponent_side = 'white'
+                    opponent_id = white_id
+                elif self.lichess_id == white_id:
+                    user_side = 'white'
+                    opponent_side = 'black'
+                    opponent_id = black_id
+                    
+                if game_data['winner'] == user_side:
+                    result = 'win'
+                elif game_data['winner'] == opponent_side:
+                    result = 'loss'
+                else:
+                    result = 'draw'
+                    
+                evals = [move.get('eval', float('nan')) for move in game_data['analysis']]
+                mates = [move.get('mate', float('nan')) for move in game_data['analysis']]
+                judgment = [move.get('judgment', None) for move in game_data['analysis']]
+                judgment_name = [judge.get('name', '') for judge in judgment if judge!=None]
+                judgment_comment = [judge.get('comment', '') for judge in judgment if judge!=None]
+             
+                game = GameData(
+                                user_id = self.lichess_id,
+                                game_id = game_data['id'],
+                                user_side = user_side,
+                                opponent_id = opponent_id,
+                                time_control = game_data['perf'],
+                                creation_date =  game_data['createdAt'],
+                                opening = game_data['opening']['name'],
+                                result = result,
+                                moves = game_data['moves'].split(),
+                                evals = evals,
+                                mates = mates,
+                                judgment_name = judgment_name,
+                                judgment_comment = judgment_comment
+                )
+                
+                self.games.append(game)
+                
+            self.games_df = pd.DataFrame([game.dict() for game in self.games])
+                                
+            logger.info(f'{len(self.games)} games retrieved')
+            return len(self.games)
 
         except Exception as e:
             logger.error(f'Exception "{e}" while fetching games from Lichess API')
@@ -89,88 +196,13 @@ class LichessComm:
 
     def show_games_info(self) -> None:
 
-        if self.games_lst is None:
+        if self.games is None:
             print('No games have been fetched yet')
             return
-        elif self.games_lst == []:
+        elif self.games == []:
             print('No games have been found for this time period')
             return
         else:
-            print(f'Fetched {len(self.games_lst)} games')
-            print(f'Last game from  : {self.games_lst[0].createdAt}')
-            print(f'First game from : {self.games_lst[-1].createdAt}')
-
-    def show_user_info(self) -> None:
-
-        if self.user_data is None:
-            print('No user data has been fetched')
-            return False
-        else:
-            print(f'User {self.user_data.id} created at {self.user_data.createdAt}')
-            print(f'Rating Classical : {self.user_data.perfs.classical.rating:4} ({self.user_data.perfs.classical.games:4} games)')
-            print(f'Rating Rapid     : {self.user_data.perfs.rapid.rating:4} ({self.user_data.perfs.rapid.games:4} games)')
-            print(f'Rating Blitz     : {self.user_data.perfs.blitz.rating:4} ({self.user_data.perfs.blitz.games:4} games)')
-            print(f'Rating Bullet    : {self.user_data.perfs.bullet.rating:4} ({self.user_data.perfs.bullet.games:4} games)')
-
-    def fill_df(self) -> pd.DataFrame:
-
-        games_dict = dict(game_id=[],
-                          user_id=[],
-                          color=[],
-                          opponent=[],
-                          time_control=[],
-                          creation_date=[],
-                          opening=[],
-                          result=[],
-                          moves=[],
-                          analysis=[],
-                          evals=[],
-                          mates=[],
-                          judgment=[])
-
-        for game in self.games_lst:
-
-            games_dict['game_id'].append(game.id)
-            games_dict['color'].append('white' if (game.players.white.user.id == self.lichess_id) else 'black')
-
-            if game.players.white.user.id == self.lichess_id:
-                games_dict['user_id'].append(game.players.white.user.id)
-                games_dict['opponent'].append(game.players.black.user.id)
-            else:
-                games_dict['user_id'].append(game.players.black.user.id)
-                games_dict['opponent'].append(game.players.white.user.id)
-
-            games_dict['creation_date'].append(game.createdAt)
-
-            if game.opening is not None:
-                games_dict['opening'].append(game.opening.name)
-            else:
-                games_dict['opening'].append('')
-
-            if game.winner == 'draw':
-                games_dict['result'].append('draw')
-            elif game.winner == 'white' and game.players.white.user.id == self.lichess_id:
-                games_dict['result'].append('win')
-            elif game.winner == 'black' and game.players.black.user.id == self.lichess_id:
-                games_dict['result'].append('win')
-            else:
-                games_dict['result'].append('loss')
-
-            games_dict['time_control'].append(game.speed)
-
-            games_dict['moves'].append(game.moves.split(' '))
-
-            games_dict['analysis'].append(True if game.analysis != None else False)
-
-            games_dict['evals'].append([move_anal.eval for move_anal in game.analysis]
-                                       if game.analysis != None else [])
-
-            games_dict['mates'].append([move_anal.mate for move_anal in game.analysis]
-                                       if game.analysis != None else [])
-
-            games_dict['judgment'].append([move_anal.judgment.name if move_anal.judgment != '' else '' for move_anal in game.analysis]
-                                          if game.analysis != None else [])
-
-        self.games_df = pd.DataFrame.from_dict(games_dict, orient='columns')
-        #self.games_df.set_index('id', inplace=True)
-
+            print(f'Fetched {len(self.games)} games')
+            print(f'Last game from  : {self.games[0].creation_date}')
+            print(f'First game from : {self.games[-1].creation_date}')
