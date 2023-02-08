@@ -38,7 +38,76 @@ from pydantic import BaseModel
 from datetime import datetime
 
 
-class GameData(BaseModel):
+
+class User(BaseModel):
+    email: str
+    password: str
+    lichess_id: str
+    chesscom_id: str
+
+    class Config:
+        orm_mode = True
+
+class UserLichess(BaseModel):
+    """Pydantic class representing user data on a chess platform: 
+    E.g. Chesscom, lichess.
+
+    Attributes:
+        id (str): Unique identifier of the user.
+        creation_date (datetime): The date and time the user account was created.
+        bullet_games (int): Number of bullet games played by the user.
+        bullet_rating (int): The user's bullet rating.
+        blitz_games (int): Number of blitz games played by the user.
+        blitz_rating (int): The user's blitz rating.
+        rapid_games (int): Number of rapid games played by the user.
+        rapid_rating (int): The user's rapid rating.
+        classical_games (int): Number of classical games played by the user.
+        classical_rating (int): The user's classical rating.
+    """
+    lichess_id: str
+    creation_date: datetime
+    rating_classical: int
+    rating_rapid: int
+    rating_blitz: int
+    rating_bullet: int
+    games_classical: int
+    games_rapid: int
+    games_blitz: int
+    games_bullet: int
+
+    class Config:
+        orm_mode = True
+
+class UserChesscom(BaseModel):
+    """Pydantic class representing user data on a chess platform: 
+    E.g. Chesscom, lichess.
+
+    Attributes:
+        id (str): Unique identifier of the user.
+        creation_date (datetime): The date and time the user account was created.
+        bullet_games (int): Number of bullet games played by the user.
+        bullet_rating (int): The user's bullet rating.
+        blitz_games (int): Number of blitz games played by the user.
+        blitz_rating (int): The user's blitz rating.
+        rapid_games (int): Number of rapid games played by the user.
+        rapid_rating (int): The user's rapid rating.
+        classical_games (int): Number of classical games played by the user.
+        classical_rating (int): The user's classical rating.
+    """
+    chesscom_id: str
+    creation_date: datetime
+    rating_classical: int
+    rating_rapid: int
+    rating_blitz: int
+    rating_bullet: int
+    games_classical: int
+    games_rapid: int
+    games_blitz: int
+    games_bullet: int
+
+    class Config:
+        orm_mode = True
+class Game(BaseModel):
     """Pydantic class representing data for a single game on Lichess.
 
     Attributes:
@@ -65,33 +134,11 @@ class GameData(BaseModel):
     opening: str
     result: str
     moves: List[str]
+    analysis: bool
     evals: List[float]
     mates: List[float]
     judgment_name: List[str]
     judgment_comment: List[str]
-
-class UserLichessData(BaseModel):
-    """Pydantic class representing user data on Lichess.
-
-    Attributes:
-        id (str): Unique identifier of the user.
-        creation_date (datetime): The date and time the user account was created.
-        bullet_games (int): Number of bullet games played by the user.
-        bullet_rating (int): The user's bullet rating.
-        blitz_games (int): Number of blitz games played by the user.
-        blitz_rating (int): The user's blitz rating.
-        rapid_games (int): Number of rapid games played by the user.
-        rapid_rating (int): The user's rapid rating.
-        classical_games (int): Number of classical games played by the user.
-        classical_rating (int): The user's classical rating.
-    """
-    id: str
-    creation_date: datetime
-    bullet_games: int
-    bullet_rating: int
-    blitz_games: int
-    blitz_rating: int
-    rapid_games: int
-    rapid_rating: int
-    classical_games: int
-    classical_rating: int
+    
+    class Config:
+        orm_mode = True
