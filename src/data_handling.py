@@ -14,21 +14,18 @@ import pandas
 from sqlalchemy import create_engine, select, Column, String, DateTime, Boolean, Enum, Integer, SmallInteger, ForeignKey
 from sqlalchemy.sql import text 
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from sqlalchemy.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.exc import NoResultFound, MultipleResultsFound, IntegrityError
 from sqlalchemy_utils import ScalarListType
 
-from src.data_structures import User, UserLichess, Game
-from src.chessportals_comm import LichessComm
+from data_structures import User, UserLichess, Game
+from chessportals_comm import LichessComm
 
 # Create configure module   module_logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-
 SQLALCHEMY_DATABASE_URL = 'sqlite:///app.sqlite' 
 Base = declarative_base()
-
-
 
 class UserORM(Base):
     """Declares SQLAlchemy table for players
@@ -38,14 +35,14 @@ class UserORM(Base):
     """
     __tablename__ = 'users'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, primary_key=True)
     email = Column(String)
     hashed_password = Column(String)
     lichess_id = Column(String)
     chesscom_id = Column(String)
 
     def __repr__(self):
-         return f'<Player(user_id={self.id}, lichess_id={self.lichess_id})>'
+         return f'<Player(user_id={self.user_id}, lichess_id={self.lichess_id})>'
 
 
 class UserChesscomORM(Base):
@@ -108,13 +105,13 @@ class GamesORM(Base):
 
     game_id = Column(String, primary_key=True)
     platform = Column(String(10))
-    user_id = Column(String, ForeignKey('users.id'))
-    user_side = Column(PlayerSide)
+    user_id = Column(String, ForeignKey('users.user_id'))
+    user_side = Column(String)
     opponent_id = Column(String(50))
     time_control = Column(String)
     creation_date = Column(DateTime)
     opening = Column(String)
-    result = Column(GameResult)
+    result = Column(String)
     moves = Column(ScalarListType())
     analysis = Column(Boolean)
     evals = Column(ScalarListType(float))
@@ -125,31 +122,6 @@ class GamesORM(Base):
     def __repr__(self):
         return f'<Game(id={self.game_id}, date={self.creation_date},side={self.user_side}, result={self.result}, opening={self.opening})>'
 
-class GamesTemp(Base):   
-    """Declares SQLAlchemy table for temporary players games
-    
-    This DB table is used temporarily when fetching games from external platforms 
-    """
-    __tablename__ = 'games_temp'
-
-    game_id = Column(String, primary_key=True)
-    user_id = Column(String)
-    color = Column(String)
-    opponent = Column(String)
-    time_control = Column(String)
-    creation_date = Column(DateTime)
-    opening = Column(String)
-    result = Column(String)
-    moves = Column(ScalarListType())
-    analysis = Column(Boolean)
-    evals = Column(ScalarListType(float))
-    mates = Column(ScalarListType(float))
-    judgment = Column(String)
-
-# class GamesTemp(Base):
-#     __tablename__ = 'games_temp'
-
-#     game_id = Column(String, primary_key=True)
 
 class Database:
     """Declares Database class
@@ -195,7 +167,7 @@ class Database:
     def get_user(self, user_id: str):
         """Returns a user given the user_id"""
         session = self.Session()
-        user = session.query(UserORM).filter(UserORM.id == user_id).first()
+        user = session.query(UserORM).filter(UserORM.user_id == user_id).first()
         
         if user and user.lichess_id:
             user_lichess = session.query(UserLichessORM).filter(UserLichessORM.lichess_id == user.lichess_id).first()
@@ -220,14 +192,15 @@ class Database:
     def create_user(self, user: User):
         session = self.Session()
         
-        existing_user = self.get_user_by_email(user.email)
+        existing_user,_,_ = self.get_user(user.user_id)
         if not existing_user:
             # Create new user entry
             fake_hashed_password = user.password + "notreallyhashed"
-            new_user = UserORM(email=user.email,
-                            lichess_id=user.lichess_id, 
-                            chesscom_id=user.chesscom_id, 
-                            hashed_password=fake_hashed_password)
+            new_user = UserORM(user_id=user.user_id,
+                                email=user.email,
+                                lichess_id=user.lichess_id, 
+                                chesscom_id=user.chesscom_id, 
+                                hashed_password=fake_hashed_password)
             session = self.Session()
             session.add(new_user)
             session.commit()
@@ -243,7 +216,6 @@ class Database:
         session = self.Session()
         # Find the UserORM instance that corresponds to the user_lichess.user_id
         user_orm, user_lichess_orm, user_chesscom_orm = self.get_user(id)
-        print(user_orm, user_lichess_orm, user_chesscom_orm)
         if user_orm is None:
             logger.info(f"User with id '{id}' does not exist in the 'users' table.")
             return None
@@ -264,19 +236,29 @@ class Database:
         
         user_orm, user_lichess_orm, user_chesscom_orm = self.get_user(user_id)
     
-        session = self.Session()    
-        query = session.query(GamesORM).filter(GamesORM.user_id == user_orm.id).all()
-        
-        return query
+        session = self.Session()
+        if user_orm:
+            query = session.query(GamesORM).filter(GamesORM.user_id == user_orm.user_id).all()
+            return query
+        else:
+            return None
     
     def create_games(self, games: Game):
 
         session = self.Session()           
         # Add the UserLichessORM instance to the session
+        k = 0
         for game in games:
-            session.add(GamesORM(**game.dict()))
+            try:
+                session.add(GamesORM(**game.dict()))
+                session.flush()
+                k += 1
+            except IntegrityError:
+                session.rollback()
+                logger.debug(f'Not possible insert game with id: {game.game_id}')
+        
         session.commit()
- 
+        logger.info(f'Number of games created in DB: {k}/{len(games)}')
     
     # @staticmethod
     # def convert_userdata(user:UserLichess) -> UserLichess:

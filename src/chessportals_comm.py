@@ -11,7 +11,7 @@ import pandas as pd
 import berserk
 from berserk.exceptions import ApiError 
 
-from src.data_structures import Game, UserLichess
+from data_structures import Game, UserLichess
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -156,22 +156,25 @@ class LichessComm:
             
             if use_saved_reply:
                 with open('game_data.pickle','rb') as fp:                
-                    games_gen = pickle.load(fp)                
+                    games = pickle.load(fp)                
             else:
                 # Get a generator of games from Lichess API using the export_by_player method
-                games_gen = self.client.games.export_by_player(self.lichess_id,
+                games = self.client.games.export_by_player(self.lichess_id,
                                                                 rated=True,
                                                                 since=since_millis,
                                                                 until=until_millis,
                                                                 evals=self.get_evals,
                                                                 opening=self.get_opening)
-                    
+                games = list(games)
+                logger.debug(f'Number of games exported from Lichess using berserk module: {len(games)}')
+                
             if save_reply:
+                
                 with open('game_data.pickle','wb') as fp:
-                    pickle.dump([game for game in games_gen], fp)
+                    pickle.dump([game for game in games], fp)
                         
             # Iterate through the generator of games
-            for i,game_data in enumerate(games_gen):
+            for i,game_data in enumerate(games):
                 # If logger is in debug mode, write each game data to a separate file
                 if logging.DEBUG == logger.getEffectiveLevel():
                     id = game_data['id']

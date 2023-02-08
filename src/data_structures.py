@@ -40,6 +40,7 @@ from datetime import datetime
 
 
 class User(BaseModel):
+    user_id: str
     email: str
     password: str
     lichess_id: str
