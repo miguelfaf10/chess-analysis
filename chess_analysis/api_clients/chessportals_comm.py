@@ -1,4 +1,4 @@
-import pickle, json
+import pickle, json, yaml
 
 from distutils.debug import DEBUG
 from typing import List
@@ -11,12 +11,11 @@ import pandas as pd
 import berserk
 from berserk.exceptions import ApiError 
 
-from data_structures import Game, UserLichess
+from chess_analysis import CONFIG_FILE_PATH, TEST_DATA_PATH
+from ..models.data_structures import UserLichess, Game
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-
 
 class LichessComm:
     """Class that wraps around the Lichess API provided by berserk to retrieve information.
@@ -32,9 +31,7 @@ class LichessComm:
         games_df (pd.DataFrame): DataFrame of game information for the user.
 
     """
-    
     lichess_id = None
-    API_TOKEN = None
     client = None
 
     user_data = None
@@ -51,15 +48,17 @@ class LichessComm:
             lichess_id (str): The ID of the lichess user.
         
         """
-        # Initialize token
-        with open('conf/token.txt') as f:
-            self.API_TOKEN = f.readline()[:-1]
-
-        # Initialize lichess client
         self.lichess_id = lichess_id
-        session_lichess = berserk.TokenSession(self.API_TOKEN)
+        
+        # Initialize token
+        with open(CONFIG_FILE_PATH) as f:
+            config = yaml.safe_load(f) 
+        lichess_api_key = config['api']['lichess_key']
+        
+        # Initialize lichess client
+        session_lichess = berserk.TokenSession(lichess_api_key)
         self.client = berserk.Client(session=session_lichess)
-        logger.debug('Created client session to Lichess API')
+        logger.debug(f'Created Lichess API berserk client for user {lichess_id}')
 
     def fetch_user_rating(self):
         """Fetch the rating history of the lichess user.
@@ -88,14 +87,14 @@ class LichessComm:
         try:
             
             if use_saved_reply:
-                with open('user_data.pickle','rb') as fp:                
+                with open(TEST_DATA_PATH+'/user_data.pickle','rb') as fp:                
                     user_data = pickle.load(fp)                
             else:
                 # Get public data of the user with id self.lichess_id from the client object
                 user_data = self.client.users.get_public_data(self.lichess_id)
                 
             if save_reply:
-                with open('user_data.pickle','wb') as fp:
+                with open(TEST_DATA_PATH+'/user_data.pickle','wb') as fp:
                     pickle.dump(user_data, fp)
             
             # If logger's effective level is set to logging.DEBUG
@@ -155,7 +154,7 @@ class LichessComm:
             logger.info(f'Between {since} and {until}')
             
             if use_saved_reply:
-                with open('game_data.pickle','rb') as fp:                
+                with open(TEST_DATA_PATH+'/game_data.pickle','rb') as fp:                
                     games = pickle.load(fp)                
             else:
                 # Get a generator of games from Lichess API using the export_by_player method
@@ -170,7 +169,7 @@ class LichessComm:
                 
             if save_reply:
                 
-                with open('game_data.pickle','wb') as fp:
+                with open(TEST_DATA_PATH+'/game_data.pickle','wb') as fp:
                     pickle.dump([game for game in games], fp)
                         
             # Iterate through the generator of games

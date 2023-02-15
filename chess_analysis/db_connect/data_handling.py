@@ -6,6 +6,7 @@ functions.
 
 from pathlib import Path
 import logging
+import yaml
 
 from datetime import datetime, timedelta
 
@@ -13,18 +14,20 @@ import pandas
 
 from sqlalchemy import create_engine, select, Column, String, DateTime, Boolean, Enum, Integer, SmallInteger, ForeignKey
 from sqlalchemy.sql import text 
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker, close_all_sessions
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound, IntegrityError
 from sqlalchemy_utils import ScalarListType
 
-from data_structures import User, UserLichess, Game
-from chessportals_comm import LichessComm
+from chess_analysis import CONFIG_FILE_PATH
+from ..models.data_structures import User, UserLichess, Game
+from ..api_clients.chessportals_comm import LichessComm
+
 
 # Create configure module   module_logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-SQLALCHEMY_DATABASE_URL = 'sqlite:///app.sqlite' 
+
 Base = declarative_base()
 
 class UserORM(Base):
@@ -42,7 +45,7 @@ class UserORM(Base):
     chesscom_id = Column(String)
 
     def __repr__(self):
-         return f'<Player(user_id={self.user_id}, lichess_id={self.lichess_id})>'
+         return f'<Player(user_id={self.user_id}, pass={self.hashed_password}, lichess_id={self.lichess_id})>'
 
 
 class UserChesscomORM(Base):
@@ -139,15 +142,18 @@ class Database:
         
         Check if the database file exists. If not, create it.
         """
-
-        db_file = SQLALCHEMY_DATABASE_URL.split('/')[-1] 
+        with open(CONFIG_FILE_PATH) as f:
+            config = yaml.safe_load(f) 
+    
+        db_url = config['database']['url']
+        db_file = db_url.split('/')[-1] 
     
         if Path(db_file).exists():
             logger.info(f'DB file {db_file} exists')
         else:
             logger.info('DB file app.db doesn\'t exist')
 
-        self.engine = create_engine(SQLALCHEMY_DATABASE_URL, 
+        self.engine = create_engine(db_url, 
                                     echo=False, 
                                     future=True, 
                                     connect_args={"check_same_thread": False})
@@ -155,6 +161,9 @@ class Database:
         self.Session = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         
         Base.metadata.create_all(self.engine)
+
+    def close_conn(self):
+        close_all_sessions()
 
     def get_session(self):
         """Return a session."""
@@ -195,7 +204,7 @@ class Database:
         existing_user,_,_ = self.get_user(user.user_id)
         if not existing_user:
             # Create new user entry
-            fake_hashed_password = user.password + "notreallyhashed"
+            fake_hashed_password = user.password
             new_user = UserORM(user_id=user.user_id,
                                 email=user.email,
                                 lichess_id=user.lichess_id, 
@@ -207,8 +216,16 @@ class Database:
             session.refresh(new_user)
             return new_user
         else:
-            logger.info(f'User with same email already exists: {existing_user.email}')
+            logger.info(f'Already existis in database user_id {existing_user.user_id}')
             return None
+        
+    def authenticate_user(self, username, password):
+        session = self.Session()
+        hashed_password = hash(password)
+
+        user = session.query(User).filter_by(user_id=username).first()        
+        
+        return user and user.hashed_password == hashed_password
 
     def create_user_lichess(self, id: str, user_lichess: UserLichess) -> None:
         """Create a new UserLichessORM instance in the database
@@ -259,175 +276,3 @@ class Database:
         
         session.commit()
         logger.info(f'Number of games created in DB: {k}/{len(games)}')
-    
-    # @staticmethod
-    # def convert_userdata(user:UserLichess) -> UserLichess:
-
-    #     if user == None:
-    #         return None
-    #     else:
-    #         user_data = UserLichess(
-    #             id = user.user_id,
-    #             createdAt = user.creation_date,
-    #             perfs=TimeControls(
-    #                 bullet=Performance(rating=user.rating_bullet,games=user.games_bullet),
-    #                 blitz=Performance(rating=user.rating_blitz,games=user.games_blitz),
-    #                 rapid=Performance(rating=user.rating_rapid,games=user.games_rapid),
-    #                 classical=Performance(rating=user.rating_classical,games=user.games_classical),
-    #             )
-    #     )
-    #     return user_data
-
-    # @staticmethod
-    # def convert_gamedata(game:Game) -> GameData:
-
-    #     if game == None:
-    #         return None
-    #     else:
-    #         game_data = GameData(
-    #             game_id = game.game_id,
-    #             user_id = game.user_id,
-    #             color = game.color,
-    #             opponent = game.opponent,
-    #             time_control = game.time_control,
-    #             creation_date = game.creation_date,
-    #             opening = game.opening,
-    #             result = game.result,
-    #             moves = game.moves,
-    #             analysis = game.analysis,
-    #             evals = game.evals if game.evals!= None else [],
-    #             mates = game.mates if game.mates!= None else [],
-    #             judgment = game.judgment if game.judgment!= None else ''
-    #     )
-    #     return game_data
-
-    # def migrate_user_data(self, lichess_id:str) -> UserLichess:
-
-    #     # Retrieve user data from lichess
-    #     lichess_comm = LichessComm(lichess_id)
-    #     user_data = lichess_comm.fetch_user_data()
-
-    #     if user_data is None:
-    #         logger.info(f'User {lichess_id} not found in Lichess')
-    #         return None
-    #     else:
-    #         logger.info(f'Created {user_data.id} in DB')
-
-    #         # Create DB model with Lichess info
-    #         user = UserLichess(user_id=user_data.id,
-    #                     creation_date=user_data.createdAt,
-    #                     rating_classical=user_data.perfs.classical.rating,
-    #                     rating_rapid=user_data.perfs.rapid.rating,
-    #                     rating_blitz=user_data.perfs.blitz.rating,
-    #                     rating_bullet=user_data.perfs.bullet.rating,
-    #                     games_classical=user_data.perfs.classical.games,
-    #                     games_rapid=user_data.perfs.rapid.games,
-    #                     games_blitz=user_data.perfs.blitz.games,
-    #                     games_bullet=user_data.perfs.bullet.games,
-    #                     last_update=datetime.now()
-    #                     )
-
-    #         # Save new user data entry into db         
-    #         session = Session(self.engine)
-    #         session.add(user)
-    #         session.commit()
-    #         session.close()
-
-    #         return user
-
-    # def migrate_user_games(self, lichess_id:str, since:datetime, until:datetime) -> None:
-
-    #     # Retrieve user data from lichess
-    #     lichess_comm = LichessComm(lichess_id)
-    #     n_games = lichess_comm.fetch_user_games(since, until)
-
-    #     # Retrieve user games from lichess for request period
-    #     # and add it to temporary GamesTemp table in db
-    #     # this is so to avoid erasing game in Games table, and
-    #     # conflicts due to repeated game keys.
-    #     lichess_comm.fill_df()
-    #     lichess_comm.games_df.to_sql('games_temp', 
-    #                                 con=self.engine, 
-    #                                 if_exists='replace',
-    #                                 dtype=dtypes,
-    #                                 index=False)
-
-    #     # Sequentially add games from GamesTemp table to main Games table in db
-    #     # Before adding a game verify that it doesn't exists already by checking
-    #     # the game_id.
-    #     session = self.Session(self.engine)
-    #     try:
-    #         old_gameid_lst = [aux[0] for aux in session.execute(select(Games.game_id)).all()]
-    #         new_game_lst = [aux[0] for aux in session.execute(select(GamesTemp)).all()]
-
-    #         if len(new_game_lst)>0:
- 
-    #             for game_temp in new_game_lst:
-    #                 if game_temp.game_id not in old_gameid_lst:
-    #                     logger.debug(f'Adding game {game_temp.game_id} to Games table in DB')
-    #                     game = Games(
-    #                             game_id = game_temp.game_id,
-    #                             user_id = game_temp.user_id,
-    #                             color = game_temp.color,
-    #                             opponent = game_temp.opponent,
-    #                             time_control = game_temp.time_control,
-    #                             creation_date = game_temp.creation_date,
-    #                             opening = game_temp.opening,
-    #                             result = game_temp.result,
-    #                             moves = game_temp.moves,
-    #                             analysis = game_temp.analysis,
-    #                             evals = game_temp.evals,
-    #                             mates = game_temp.mates,
-    #                             judgment = game_temp.judgment
-    #                     )
-    #                     session.add(game)
-    #                 else:
-    #                     logger.debug(f'Ignoring game "{game_temp.game_id}" which exists already in Games table in DB')
-    #         session.commit()
-    #     except:
-    #         logger.error(f'Failed to copy new games from temp to permanent db table')
-    #         session.rollback()
-    #     finally:
-    #         session.close()
-
-
-    # def retrieve_player_data(self, player_id) -> UserLichess:
-
-    #     session = Session(self.engine)
-    #     try:
-    #         player = session.execute(select(Player).filter_by(player_id=player_id)).one()[0]
-    #         logger.info(f'Found in DB: {player}')
-
-    #     except NoResultFound:
-    #         logger.info(f'Player {player_id} not found in DB.')
-    #         return None
-
-    #     finally:
-    #         user_data = self.convert_userdata(player)
-    #         #session.close()
-    #         return user_data  
-
-
-    # def retrieve_user_games(self, lichess_id):
-
-    #     # Check if user exists in db
-    #     session = self.Session(self.engine)
-    #     try:
-    #         user = session.execute(select(Users).filter_by(user_id=lichess_id)).one()[0]
-    #     except NoResultFound:
-    #         logger.debug(f'Lichess user {lichess_id} not found in DB. No games can be retrieved')
-    #         return None
-        
-    #     # Retrieve existing games from db
-    #     game_lst = session.execute(select(Games).filter_by(user_id=lichess_id)).all()
-    #     logger.info(f'User {lichess_id} has {len(game_lst)} games in DB')
-
-    #     if len(game_lst) == 0: 
-    #         session.close()
-    #         return None
-    #     else:
-    #         game_data_lst = [self.convert_gamedata(game[0]) for game in game_lst]
-    #         session.close()        
-    #         return game_data_lst
-    
-    
